@@ -3,49 +3,54 @@
  * @author alteredq / http://alteredqualia.com/
  */
 
-THREE.Sprite = ( function () {
+THREE.Sprite = function ( material ) {
 
-	var vertices = new THREE.Float32Attribute( 3, 3 );
-	vertices.set( [ - 0.5, - 0.5, 0, 0.5, - 0.5, 0, 0.5, 0.5, 0 ] );
+	THREE.Object3D.call( this );
 
-	var geometry = new THREE.BufferGeometry();
-	geometry.addAttribute( 'position', vertices );
+	this.type = 'Sprite';
 
-	return function ( material ) {
-
-		THREE.Object3D.call( this );
-
-		this.geometry = geometry;
-		this.material = ( material !== undefined ) ? material : new THREE.SpriteMaterial();
-
-	};
-
-} )();
-
-THREE.Sprite.prototype = Object.create( THREE.Object3D.prototype );
-
-/*
- * Custom update matrix
- */
-
-THREE.Sprite.prototype.updateMatrix = function () {
-
-	this.matrix.compose( this.position, this.quaternion, this.scale );
-
-	this.matrixWorldNeedsUpdate = true;
+	this.material = ( material !== undefined ) ? material : new THREE.SpriteMaterial();
 
 };
 
-THREE.Sprite.prototype.clone = function ( object ) {
+THREE.Sprite.prototype = Object.assign( Object.create( THREE.Object3D.prototype ), {
 
-	if ( object === undefined ) object = new THREE.Sprite( this.material );
+	constructor: THREE.Sprite,
 
-	THREE.Object3D.prototype.clone.call( this, object );
+	raycast: ( function () {
 
-	return object;
+		var matrixPosition = new THREE.Vector3();
 
-};
+		return function raycast( raycaster, intersects ) {
 
-// Backwards compatibility
+			matrixPosition.setFromMatrixPosition( this.matrixWorld );
 
-THREE.Particle = THREE.Sprite;
+			var distanceSq = raycaster.ray.distanceSqToPoint( matrixPosition );
+			var guessSizeSq = this.scale.x * this.scale.y / 4;
+
+			if ( distanceSq > guessSizeSq ) {
+
+				return;
+
+			}
+
+			intersects.push( {
+
+				distance: Math.sqrt( distanceSq ),
+				point: this.position,
+				face: null,
+				object: this
+
+			} );
+
+		};
+
+	}() ),
+
+	clone: function () {
+
+		return new this.constructor( this.material ).copy( this );
+
+	}
+
+} );

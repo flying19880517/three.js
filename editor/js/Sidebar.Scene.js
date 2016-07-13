@@ -1,15 +1,64 @@
+/**
+ * @author mrdoob / http://mrdoob.com/
+ */
+
 Sidebar.Scene = function ( editor ) {
 
 	var signals = editor.signals;
 
-	var container = new UI.CollapsiblePanel();
+	var container = new UI.Panel();
+	container.setBorderTop( '0' );
+	container.setPaddingTop( '20px' );
 
-	container.addStatic( new UI.Text( 'SCENE' ) );
-	container.add( new UI.Break() );
+	// outliner
+
+	function buildOption( object, draggable ) {
+
+		var option = document.createElement( 'div' );
+		option.draggable = draggable;
+		option.innerHTML = buildHTML( object );
+		option.value = object.id;
+
+		return option;
+
+	}
+
+	function buildHTML( object ) {
+
+		var html = '<span class="type ' + object.type + '"></span> ' + object.name;
+
+		if ( object instanceof THREE.Mesh ) {
+
+			var geometry = object.geometry;
+			var material = object.material;
+
+			html += ' <span class="type ' + geometry.type + '"></span> ' + geometry.name;
+			html += ' <span class="type ' + material.type + '"></span> ' + material.name;
+
+		}
+
+		html += getScript( object.uuid );
+
+		return html;
+
+	}
+
+	function getScript( uuid ) {
+
+		if ( editor.scripts[ uuid ] !== undefined ) {
+
+			return ' <span class="type Script"></span>';
+
+		}
+
+		return '';
+
+	}
 
 	var ignoreObjectSelectedSignal = false;
 
-	var outliner = new UI.FancySelect().setId( 'outliner' );
+	var outliner = new UI.Outliner( editor );
+	outliner.setId( 'outliner' );
 	outliner.onChange( function () {
 
 		ignoreObjectSelectedSignal = true;
@@ -17,6 +66,11 @@ Sidebar.Scene = function ( editor ) {
 		editor.selectById( parseInt( outliner.getValue() ) );
 
 		ignoreObjectSelectedSignal = false;
+
+	} );
+	outliner.onDblClick( function () {
+
+		editor.focusById( parseInt( outliner.getValue() ) );
 
 	} );
 	container.add( outliner );
@@ -34,14 +88,14 @@ Sidebar.Scene = function ( editor ) {
 
 	};
 
-	var fogTypeRow = new UI.Panel();
+	var fogTypeRow = new UI.Row();
 	var fogType = new UI.Select().setOptions( {
 
 		'None': 'None',
 		'Fog': 'Linear',
 		'FogExp2': 'Exponential'
 
-	} ).setWidth( '150px' ).setColor( '#444' ).setFontSize( '12px' )
+	} ).setWidth( '150px' );
 	fogType.onChange( function () {
 
 		var type = fogType.getValue();
@@ -58,7 +112,7 @@ Sidebar.Scene = function ( editor ) {
 
 	// fog color
 
-	var fogColorRow = new UI.Panel();
+	var fogColorRow = new UI.Row();
 	fogColorRow.setDisplay( 'none' );
 
 	var fogColor = new UI.Color().setValue( '#aaaaaa' )
@@ -75,7 +129,7 @@ Sidebar.Scene = function ( editor ) {
 
 	// fog near
 
-	var fogNearRow = new UI.Panel();
+	var fogNearRow = new UI.Row();
 	fogNearRow.setDisplay( 'none' );
 
 	var fogNear = new UI.Number( 1 ).setWidth( '60px' ).setRange( 0, Infinity ).onChange( updateFogParameters );
@@ -85,7 +139,7 @@ Sidebar.Scene = function ( editor ) {
 
 	container.add( fogNearRow );
 
-	var fogFarRow = new UI.Panel();
+	var fogFarRow = new UI.Row();
 	fogFarRow.setDisplay( 'none' );
 
 	// fog far
@@ -99,7 +153,7 @@ Sidebar.Scene = function ( editor ) {
 
 	// fog density
 
-	var fogDensityRow = new UI.Panel();
+	var fogDensityRow = new UI.Row();
 	fogDensityRow.setDisplay( 'none' );
 
 	var fogDensity = new UI.Number( 0.00025 ).setWidth( '60px' ).setRange( 0, 0.1 ).setPrecision( 5 ).onChange( updateFogParameters );
@@ -111,57 +165,31 @@ Sidebar.Scene = function ( editor ) {
 
 	//
 
-	var refreshFogUI = function () {
+	var refreshUI = function () {
 
-		var type = fogType.getValue();
-
-		fogColorRow.setDisplay( type === 'None' ? 'none' : '' );
-		fogNearRow.setDisplay( type === 'Fog' ? '' : 'none' );
-		fogFarRow.setDisplay( type === 'Fog' ? '' : 'none' );
-		fogDensityRow.setDisplay( type === 'FogExp2' ? '' : 'none' );
-
-	};
-
-	// events
-
-	signals.sceneGraphChanged.add( function () {
-
+		var camera = editor.camera;
 		var scene = editor.scene;
-		var sceneType = editor.getObjectType( scene );
 
 		var options = [];
 
-		options.push( { value: scene.id, html: '<span class="type ' + sceneType + '"></span> ' + scene.name } );
+		options.push( buildOption( camera, false ) );
+		options.push( buildOption( scene, false ) );
 
 		( function addObjects( objects, pad ) {
 
 			for ( var i = 0, l = objects.length; i < l; i ++ ) {
 
 				var object = objects[ i ];
-				var objectType = editor.getObjectType( object );
 
-				var html = pad + '<span class="type ' + objectType + '"></span> ' + object.name;
+				var option = buildOption( object, true );
+				option.style.paddingLeft = ( pad * 10 ) + 'px';
+				options.push( option );
 
-				if ( object instanceof THREE.Mesh ) {
-
-					var geometry = object.geometry;
-					var material = object.material;
-
-					var geometryType = editor.getGeometryType( geometry );
-					var materialType = editor.getMaterialType( material );
-
-					html += ' <span class="type ' + geometryType + '"></span> ' + geometry.name;
-					html += ' <span class="type ' + materialType + '"></span> ' + material.name;
-
-				}
-
-				options.push( { value: object.id, html: html } );
-
-				addObjects( object.children, pad + '&nbsp;&nbsp;&nbsp;' );
+				addObjects( object.children, pad + 1 );
 
 			}
 
-		} )( scene.children, '&nbsp;&nbsp;&nbsp;' );
+		} )( scene.children, 1 );
 
 		outliner.setOptions( options );
 
@@ -196,6 +224,42 @@ Sidebar.Scene = function ( editor ) {
 
 		refreshFogUI();
 
+	};
+
+	var refreshFogUI = function () {
+
+		var type = fogType.getValue();
+
+		fogColorRow.setDisplay( type === 'None' ? 'none' : '' );
+		fogNearRow.setDisplay( type === 'Fog' ? '' : 'none' );
+		fogFarRow.setDisplay( type === 'Fog' ? '' : 'none' );
+		fogDensityRow.setDisplay( type === 'FogExp2' ? '' : 'none' );
+
+	};
+
+	refreshUI();
+
+	// events
+
+	signals.sceneGraphChanged.add( refreshUI );
+
+	signals.objectChanged.add( function ( object ) {
+
+		var options = outliner.options;
+
+		for ( var i = 0; i < options.length; i ++ ) {
+
+			var option = options[ i ];
+
+			if ( option.value === object.id ) {
+
+				option.innerHTML = buildHTML( object );
+				return;
+
+			}
+
+		}
+
 	} );
 
 	signals.objectSelected.add( function ( object ) {
@@ -208,4 +272,4 @@ Sidebar.Scene = function ( editor ) {
 
 	return container;
 
-}
+};
